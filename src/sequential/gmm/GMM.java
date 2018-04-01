@@ -23,6 +23,14 @@ import java.util.Collections;
 import java.util.NoSuchElementException;
 import java.util.Random;
 import java.util.Scanner;
+import java.util.function.DoubleToLongFunction;
+
+import javax.print.attribute.standard.RequestingUserName;
+
+import org.apache.hadoop.mapreduce.jobhistory.HistoryViewer.SummarizedJob;
+import org.apache.hadoop.security.token.delegation.web.PseudoDelegationTokenAuthenticationHandler;
+
+import usefulTools.TrainDataRerader;
 //import usefulTools.DataLoader;
 
 public class GMM {
@@ -48,21 +56,39 @@ public class GMM {
 	}
 	
 
-	public void init(int[][] trnData) {
+	@SuppressWarnings("null")
+	public void init(double[][] trnData) {
 		int nData = trnData.length;
+		double[][] sum = new double[nMix][nData/nMix];
 		double[] var = getFeatureVariance(trnData);
 		for (int j=0; j<dim; j++) {
 			varFloor[j] = VAR_FLOOR_FACTOR * var[j];
 		}
-		int[] ridx = getRandomIndex(nData, nMix);
-		for (int i = 0; i < nMix; i++) {
-			for (int j = 0; j < dim; j++) {
-				mu[i][j] = trnData[ridx[i]][j];
-				sigma[i][j] = var[j];
+		for (int m = 0; m <nMix; m++)
+			{
+				for (int j = 0;  j < dim; j++)
+				{
+					for (int i = m*(nData/nMix); i < (m+1)*(nData/nMix); i++)
+					{
+						sum[m][j] += trnData[i][j];
+					}
+					mu[m][j] = sum[m][j]/(nData/nMix);
+					sigma[m][j] = var[j];
+				}
+				pi[m] = 1.0/(double)nMix;
 			}
-			pi[i] = 1.0 / (double)nMix;
-		}
 	}
+		
+		
+//		int[] ridx = getRandomIndex(nData, nMix);
+//		for (int i = 0; i < nMix; i++) {
+//			for (int j = 0; j < dim; j++) {
+//				mu[i][j] = trnData[ridx[i]][j];
+//				sigma[i][j] = var[j];
+//			}
+//			pi[i] = 1.0 / (double)nMix;
+//		}
+//	}
 
 	public void init() {
 		for (int j=0; j<dim; j++) {
@@ -88,7 +114,7 @@ public class GMM {
 		ArrayList<double[]> list = new ArrayList<double[]>();
 		while (scanner.hasNextLine()) {
 			String line = scanner.nextLine();
-			String[] token = line.split("\\s+|,");		// Either spacee or ',' as delimiter
+			String[] token = line.split("\\s+|,");		// Either space or ',' as delimiter
 			double x[] = new double[token.length];
 			for (int i=0; i<x.length; i++) {
 				x[i] = Double.parseDouble(token[i]);
@@ -102,12 +128,13 @@ public class GMM {
 		return trnData;
 	}
 
-	public void train(int[][] trnData, int nIters) {
+	public void train(double[][] trnData, int nIters) {
 		this.init(trnData);
 		for (int iter = 1; iter <=nIters; iter++) {
 			double totalLh = getTotalLogLikelihood(trnData);
-			double minSigma = getMinimum(sigma);
-			System.out.printf("Iter %d: Likelihood = %.2f; MinSigma = %.5f\n", iter, totalLh, minSigma);
+//			double minSigma = getMinimum(sigma);
+//			System.out.printf("Iter %d: Likelihood = %.2f; MinSigma = %.5f\n", iter, totalLh, minSigma);
+			getTotalLogLikelihood(trnData);
 			SuffStats suffStats = compSuffStats(trnData);
 			maximize(trnData, suffStats);
 		}
@@ -130,7 +157,7 @@ public class GMM {
 		return ridx;
 	}
 	
-	private double[] getFeatureVariance(int[][] trnData) {
+	private double[] getFeatureVariance(double[][] trnData) {
 		int nData = trnData.length;
 		double[] var = new double[dim];
 		double[] mean = getFeatureMean(trnData);
@@ -145,12 +172,12 @@ public class GMM {
 			}
 			var[j] = sum/(nData-1);
 			
-			//	System.out.println(var[j]+" ");//--0
+			//System.out.println(var[j]+" ");//--0
 		}
 		return var;
 	}
 	
-	private double[] getFeatureMean(int[][] trnData) {
+	private double[] getFeatureMean(double[][] trnData) {
 		int nData = trnData.length;
 		double[] mean = new double[dim];
 		for (int j=0; j<dim; j++) {
@@ -168,7 +195,7 @@ public class GMM {
 	 * compute all sufficient statistics here so that we do not need to keep an N x K posterior
 	 * probability matrix. 
 	 */
-	private SuffStats compSuffStats(int[][] trnData) {
+	private SuffStats compSuffStats(double[][] trnData) {
 		SuffStats suffStats = new SuffStats(dim, nMix);
 		int nData = trnData.length;
 		for (int t = 0; t < nData; t++) {
@@ -186,41 +213,81 @@ public class GMM {
 	}
 	
 	
-	private double[] getPosterior(int[] xt, double[] pi, double[][] mu, double[][] sigma) {
-		double[] post = new double[nMix];
-		double[] likeLh = new double[nMix];
-		double sum = 0.0;
-		for (int i = 0; i < nMix; i++) {
-			likeLh[i] = pi[i] * getComponentLikelihood(xt, mu[i], sigma[i]);
-			sum += likeLh[i];
+//	private double[] getPosterior(double[] trnData, double[] pi, double[][] mu, double[][] sigma) {
+//		double[] post = new double[nMix];
+//		double[] likeLh = new double[nMix];
+//		double sum = 0.0;
+//		for (int i = 0; i < nMix; i++) {
+//			likeLh[i] = pi[i] * getComponentLikelihood(trnData, mu[i], sigma[i]);
+//			sum += likeLh[i];
+//		}
+//		for (int i = 0; i < nMix; i++) {
+//			post[i] = likeLh[i] / sum;
+//		}
+//		return post;
+//	}
+	private double[] getPosterior(double[] trnData, double[] pi, double[][] mu, double[][] sigma) {
+		double[] sum1 = new double[nMix];
+		double[] sum2 = new double[nMix];
+		for (int i = 0; i <nMix; i++) {
+			sum1[i] = getComponentLikelihood_sum1(trnData, mu[i], sigma[i]);
+			sum2[i] = getComponentLikelihood_sum2(trnData, mu[i], sigma[i]);
 		}
-		for (int i = 0; i < nMix; i++) {
-			post[i] = likeLh[i] / sum;
-		}
+		double K = Math.exp(-1/2 * (sum1[0] - sum1[1]));
+		double M = Math.exp(-1/2 * (sum2[0] - sum2[1]));
+		double[] post = new double[nMix] ;
+		post[0] = pi[0] / (pi[1] * K * M + pi[0]);
+		post[1] = pi[1] / (pi[0]/(K * M) + pi[1]);
+//		System.out.println("post[0]: "+ post[0]);
+//		System.out.println("post[1]: "+ post[1]);
 		return post;
 	}
 
-	public double getComponentLikelihood(int[] xt, double[] mui, double[] sigmai) {
-		double sum1 = 0.0;
-		double sum2 = 0.0;
+//	public double getComponentLikelihood(double[] trnData, double[] mui, double[] sigmai) {
+////		double alpha = 20.0;
+//		double sum1 = 0.0;
+//		double sum2 = 0.0;
+//		for (int j = 0; j < dim; j++) {
+//			sum1 += Math.log(sigmai[j]+REG_VAL);
+//			double temp = (trnData[j] - mui[j]);
+//			sum2 += temp * temp / sigmai[j];
+//		}
+//		double llh = constant - 0.5*sum1 - 0.5 * sum2;
+//		
+//		System.out.println("sum1: "+ sum1);
+//		System.out.println("sum2: "+ sum2);
+//		System.out.println("llh:" + llh);
+//		return Math.exp(llh);
+//	}
+	
+	public double getComponentLikelihood_sum1(double[] trnData, double[] mui, double[] sigmai) {
+		double sum1 =0.0;
 		for (int j = 0; j < dim; j++) {
 			sum1 += Math.log(sigmai[j]+REG_VAL);
-			double temp = (xt[j] - mui[j]);
-			sum2 += temp * temp / sigmai[j];
 		}
-		double llh = constant - 0.5*sum1 - 0.5 * sum2;
-		return Math.exp(llh);
+		return sum1;
 	}
 	
-	public double getLogLikelihood(int[] trnData) {
-		double sum = 0.0;
-		for (int i = 0; i < nMix; i++) {
-			sum += pi[i] * getComponentLikelihood(trnData, mu[i], sigma[i]);
+	public double getComponentLikelihood_sum2(double[] trnData, double[] mui, double[] sigmai) {
+		double sum2 = 0.0;
+		for (int j = 0; j < dim; j++) {
+			double temp = (trnData[j]+REG_VAL);
+			sum2 += temp * temp / sigmai[j];
 		}
-		return(Math.log(sum));
+		return sum2;
 	}
-
-	public double getTotalLogLikelihood(int[][] trnData) {
+		
+	
+	public double getLogLikelihood(double[] trnData) {
+		double sum1 = 0.0;
+		double sum2 = 0.0;
+		for (int i = 0; i < nMix; i++) {
+			sum1 = getComponentLikelihood_sum1(trnData, mu[i], sigma[i]);
+			sum2 = getComponentLikelihood_sum1(trnData, mu[i], sigma[i]);
+		}
+		return 0;
+	}
+	public double getTotalLogLikelihood(double[][] trnData) {
 		int nData = trnData.length;
 		double totalLh = 0.0;
 		for (int t = 0; t < nData; t++) {
@@ -228,11 +295,31 @@ public class GMM {
 		}
 		return totalLh;
 	}
+	   
+
+	
+	
+//	public double getLogLikelihood(double[] trnData) {
+//		double sum = 0.0;
+//		for (int i = 0; i < nMix; i++) {
+//			sum += pi[i] * getComponentLikelihood(trnData, mu[i], sigma[i]);
+//		}
+//		return(Math.log(sum));
+//	}
+//
+//	public double getTotalLogLikelihood(double[][] trnData) {
+//		int nData = trnData.length;
+//		double totalLh = 0.0;
+//		for (int t = 0; t < nData; t++) {
+//			totalLh += getLogLikelihood(trnData[t]);
+//		}
+//		return totalLh;
+//	}
 
 	/*
 	 * Perform the M-step: Update GMM parameters based on sufficient statistics
 	 */
-	private void maximize(int[][] trnData, SuffStats suffStats) {
+	private void maximize(double[][] trnData, SuffStats suffStats) {
 		int nData = trnData.length;
 		for (int i = 0; i < nMix; i++) {
 			pi[i] = suffStats.ss0[i] / nData;
@@ -397,14 +484,14 @@ public class GMM {
 		String dataPath = args[3];
 		
 		//load training data from data File Path
-		int[][][] trainingData = usefulTools.DataLoader.loadData(dataPath);//有问题 
+		double[][][] trainingData = usefulTools.DataLoader.loadData(dataPath);//有问题 
 		//Create new ArrayList of 10 GMMs
 		ArrayList<GMM> GMMs= new ArrayList<GMM>();
 		for(int i=0; i<10; i++)
 		{
 			GMM gmm = new GMM(dim, nMix);
 			//trainingData[i][0][0] stores the number of training data of label i
-			int[][] trnData = new int[trainingData[i][0][0]][784];
+			double[][] trnData = new double[(int) trainingData[i][0][0]][784];
 			//copy data into trnData[][]
 			//java.lang.System.arraycopy(trainingData[i], 1, trnData , 0, trainingData[i][0][0]);//可能
 			/*for (int m=1; m<trainingData[i][0][0]+1; m++)
