@@ -9,8 +9,8 @@ public class DataLoader {
 	
 	
 	
-	private static double mNoiseFactor = 20;
-	public static int[][][] loadData (String dataPath)
+	private static double mNoiseFactor = 25;
+	public static double[][][] loadData (String dataPath)
     {
  	    FileInputStream inImage = null;
         FileInputStream inLabel = null;
@@ -33,7 +33,7 @@ public class DataLoader {
             
             int numberOfPixels = numberOfRows * numberOfColumns;
             
-            int[][][] images = new int[10][numberOfImages/8][numberOfPixels]; 
+            double[][][] images = new double[10][numberOfImages/8][numberOfPixels]; 
             
             for(int i=0; i<10; i++){
             	images[i][0][0] = 0;
@@ -42,19 +42,19 @@ public class DataLoader {
             for(int i = 0; i < numberOfImages ; i++) {//numberOfImages
             	
                 if(i % 10000 == 0) {System.out.println("Number of images extracted: " + i);}
-                int[] imgPixels = new int[numberOfPixels];
+                double[] imgPixels = new double[numberOfPixels];
 
                 for(int p = 0; p < numberOfPixels; p++) {
                     int gray = inImage.read();
-               //     int noise = clamp(addGNoise(gray, random));
-               //    gray = noise;
+                    int noise = clamp(addGNoise(gray, random));
+                    gray = noise;
               
-                    imgPixels[p] = gray;
+                    imgPixels[p] = (gray + 100)/455.0 * 1.01;
                 }
                 
                 int label1 = inLabel.read();
                 images[label1][0][0]++;
-                images[label1][images[label1][0][0]] = imgPixels;
+                images[label1][(int) images[label1][0][0]] = imgPixels;
                  
             }
  /*           for(int i = 0; i< 10; i++) {
@@ -99,6 +99,9 @@ public class DataLoader {
 	private static int addGNoise(int tr, Random random) {  
         int v, ran;  
         ran = (int)Math.round(random.nextGaussian()*mNoiseFactor);  
+        
+//        System.out.println(ran);
+        
         v = tr + ran;  
         return v;   
     }  
@@ -107,10 +110,10 @@ public class DataLoader {
         return p > 355 ? 355 : (p < -100 ? -100 : p);  
     }  
     
-/*   public static void main(String[] args) {
-		loadData("Dataset");
-	}
-*/  
+//   public static void main(String[] args) {
+//		loadData("Dataset");
+//	}
+  
 }
 
 
